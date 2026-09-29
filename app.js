@@ -74,6 +74,12 @@ function sanitizeState(s) {
     if (!e.metrics || typeof e.metrics !== 'object' || Array.isArray(e.metrics)) e.metrics = {};
     if (!e.scores || typeof e.scores !== 'object' || Array.isArray(e.scores)) e.scores = {};
   });
+  Object.keys(s.checks).forEach(k => { if (!s.checks[k] || typeof s.checks[k] !== 'object' || Array.isArray(s.checks[k])) delete s.checks[k]; });
+  Object.keys(s.challenges).forEach(k => {
+    const e = s.challenges[k];
+    if (!e || typeof e !== 'object' || typeof e.idx !== 'number' || typeof e.status !== 'string') delete s.challenges[k];
+  });
+  Object.keys(s.levels).forEach(k => { if (typeof s.levels[k] !== 'number' || !isFinite(s.levels[k])) delete s.levels[k]; });
   return s;
 }
 let state;
@@ -1420,6 +1426,8 @@ function renderHome() {
     save();
   }
   const ch = state.challenges[key];
+  if (typeof ch.idx !== 'number' || !isFinite(ch.idx) || ch.idx < 0) ch.idx = doy % CHALLENGES.length;
+  ch.idx = Math.floor(((ch.idx % CHALLENGES.length) + CHALLENGES.length) % CHALLENGES.length);
 
   const week = [];
   for (let i = 6; i >= 0; i--) {

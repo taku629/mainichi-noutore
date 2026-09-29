@@ -1,4 +1,4 @@
-const CACHE = 'mainichi-noutore-v19';
+const CACHE = 'mainichi-noutore-v20';
 const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.json', 'icon-192.png', 'icon-512.png',
   'demo-dd.mp4', 'demo-calc.mp4', 'demo-nb.mp4', 'demo-mk.mp4', 'demo-dual.mp4', 'demo-stroop.mp4', 'demo-vf.mp4',
   'demo-vs.mp4', 'demo-ds.mp4', 'demo-wr.mp4', 'demo-tmt.mp4', 'demo-sym.mp4', 'demo-st.mp4', 'demo-pl.mp4'];
