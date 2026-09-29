@@ -531,3 +531,13 @@ body.dark .delta.up { background: #152a20; color: var(--ok); }
 body.dark .delta.down { background: #38201c; color: var(--ng); }
 body.dark input, body.dark select { color-scheme: dark; }
 body.dark input[type="time"], body.dark .vf-input { background: #202938; color: var(--ink); }
+
+/* ===== バッジ進捗・先週比較 ===== */
+.bprog-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.bprog-icon { font-size: 22px; flex: none; opacity: .75; }
+.bprog-main { flex: 1; min-width: 0; }
+.bprog-top { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; color: var(--ink); margin-bottom: 4px; }
+.bprog-track { height: 8px; margin: 0; }
+.bprog-left { font-size: 13px; font-weight: 700; color: var(--muted); flex: none; }
+.wb-compare { margin-top: 10px; font-size: 15px; font-weight: 700; color: var(--primary); }
+body.dark .bprog-top { color: var(--ink); }

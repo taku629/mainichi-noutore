@@ -139,14 +139,15 @@ function maxStreak() {
 }
 
 const BADGES = [
-  { icon: '🔥', label: '7日連続',      ok: () => maxStreak() >= 7 },
-  { icon: '🏆', label: '30日連続',     ok: () => maxStreak() >= 30 },
-  { icon: '👑', label: '100日連続',    ok: () => maxStreak() >= 100 },
-  { icon: '🧠', label: 'ベンチ5回',    ok: () => Object.keys(state.bench).length >= 5 },
-  { icon: '🧠', label: 'ベンチ20回',   ok: () => Object.keys(state.bench).length >= 20 },
-  { icon: '💡', label: 'チャレンジ10回', ok: () => Object.values(state.challenges).filter(c => c.status === 'done').length >= 10 },
-  { icon: '🌿', label: '習慣50個',     ok: () => Object.values(state.checks).reduce((n, c) => n + Object.values(c).filter(Boolean).length, 0) >= 50 },
+  { icon: '🔥', label: '7日連続',      max: 7,   n: () => maxStreak() },
+  { icon: '🏆', label: '30日連続',     max: 30,  n: () => maxStreak() },
+  { icon: '👑', label: '100日連続',    max: 100, n: () => maxStreak() },
+  { icon: '🧠', label: 'ベンチ5回',    max: 5,   n: () => Object.keys(state.bench).length },
+  { icon: '🧠', label: 'ベンチ20回',   max: 20,  n: () => Object.keys(state.bench).length },
+  { icon: '💡', label: 'チャレンジ10回', max: 10,  n: () => Object.values(state.challenges).filter(c => c.status === 'done').length },
+  { icon: '🌿', label: '習慣50個',     max: 50,  n: () => Object.values(state.checks).reduce((n, c) => n + Object.values(c).filter(Boolean).length, 0) },
 ];
+BADGES.forEach(b => { b.ok = () => b.n() >= b.max; });
 
 /* ================= 画面ヘルパー ================= */
 const app = $('#app');
@@ -1498,11 +1499,24 @@ function renderHome() {
     <div class="tabpage" data-tab="rec">
     <div class="greet" style="margin-bottom:12px">📈 きろくと分析</div>
 
-    ${(() => { const earned = BADGES.filter(b => b.ok()); return earned.length ? `
+    ${(() => {
+      const earned = BADGES.filter(b => b.ok());
+      const next = BADGES.filter(b => !b.ok()).sort((a, b2) => b2.n() / b2.max - a.n() / a.max).slice(0, 3);
+      return `
     <div class="card">
       <div class="bench-title">🏅 バッジ<span class="bench-sub">継続の証</span></div>
-      <div class="badge-row">${earned.map(b => `<div class="badge"><span class="badge-icon">${b.icon}</span>${b.label}</div>`).join('')}</div>
-    </div>` : ''; })()}
+      ${earned.length ? `<div class="badge-row">${earned.map(b => `<div class="badge"><span class="badge-icon">${b.icon}</span>${b.label}</div>`).join('')}</div>` : '<div class="bench-msg dim">まだ獲得したバッジはありません</div>'}
+      ${next.length ? `<div class="bench-title" style="font-size:15px;margin-top:12px">つぎのバッジ</div>
+        ${next.map(b => { const n = b.n(); const pct = Math.round(n / b.max * 100); return `
+        <div class="bprog-row">
+          <span class="bprog-icon">${b.icon}</span>
+          <div class="bprog-main">
+            <div class="bprog-top"><span>${b.label}</span><span>${n} / ${b.max}</span></div>
+            <div class="bar-track bprog-track"><div class="bar-fill" style="width:${pct}%"></div></div>
+          </div>
+          <span class="bprog-left">あと${b.max - n}</span>
+        </div>`; }).join('')}` : ''}
+    </div>`; })()}
 
     ${(() => { const ana = benchAnalysis(); return ana ? `
     <div class="card">
@@ -1588,6 +1602,7 @@ function renderHome() {
       </div>
     </div>
 
+    <button class="mute-btn" id="guide" style="width:100%;padding:14px;font-size:16px;font-weight:700;margin-bottom:10px">📖 使い方ガイド</button>
     <button class="mute-btn" id="evi" style="width:100%;padding:14px;font-size:16px;font-weight:700">ℹ️ このアプリの根拠(研究文献)</button>
     </div>
 
@@ -1660,6 +1675,7 @@ function renderHome() {
   $('#mute', screen).onclick = () => { state.muted = !state.muted; save(); renderHome(); };
   $('#fontBtn', screen).onclick = () => { state.bigText = !state.bigText; save(); applyFont(); renderHome(); };
   $('#darkBtn', screen).onclick = () => { state.dark = !state.dark; save(); applyFont(); renderHome(); };
+  $('#guide', screen).onclick = () => renderGuide();
   $('#evi', screen).onclick = () => renderEvidence();
   $('#weekrep', screen).onclick = () => renderWeekReport();
 
@@ -1839,6 +1855,24 @@ function renderWeekReport() {
   const checkSum = days.reduce((s, x) => s + x.checks, 0);
   const benches = days.filter(x => x.bench);
   const streak = currentStreak();
+  const pdays = [];
+  for (let i = 13; i >= 7; i--) {
+    const dd = new Date(d); dd.setDate(d.getDate() - i);
+    const k = todayKey(dd);
+    pdays.push({
+      checks: LIFE_ITEMS.filter(it => state.checks[k] && state.checks[k][it.key]).length,
+      bench: state.bench[k] || null,
+      active: isActiveDay(k),
+    });
+  }
+  const pActiveN = pdays.filter(x => x.active).length;
+  const pCheckSum = pdays.reduce((s, x) => s + x.checks, 0);
+  const pB = pdays.filter(x => x.bench);
+  const pBenchAvg = pB.length ? Math.round(pB.reduce((s, x) => s + x.bench.score, 0) / pB.length) : null;
+  const cBenchAvg = benches.length ? Math.round(benches.reduce((s, x) => s + x.bench.score, 0) / benches.length) : null;
+  const sign = n => (n >= 0 ? '+' : '') + n;
+  const cmpLine = `先週比: 記録 ${sign(activeN - pActiveN)}日 / 習慣 ${sign(checkSum - pCheckSum)}個` +
+    (cBenchAvg != null && pBenchAvg != null ? ` / ベンチ ${sign(cBenchAvg - pBenchAvg)}点` : '');
 
   const shareText = `🧠 まいにち脳トレ 週次レポート(${days[0].label}〜${days[6].label})\n` +
     `記録した日: ${activeN}/7日 / 習慣チェック 計${checkSum}個 / ` +
@@ -1851,6 +1885,7 @@ function renderWeekReport() {
       <div class="result-label">この1週間</div>
       <div class="result-score">${activeN}<small> / 7日 記録</small></div>
       <div class="result-msg">${activeN >= 6 ? 'ほぼ毎日続いています。素晴らしい習慣です。' : activeN >= 4 ? 'いいペースです。「毎日2分」を目安に。' : activeN >= 1 ? 'まずは「2分だけ」を毎日の習慣に。' : 'まずは今日の習慣チェックから。'}</div>
+      <div class="wb-compare">${cmpLine}</div>
     </div>
     <div class="card">
       ${days.map(x => `<div class="result-row">
@@ -1882,6 +1917,40 @@ function renderWeekReport() {
   render(screen);
 }
 
+/* ================= 使い方ガイド ================= */
+function renderGuide() {
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent);
+  const screen = el(`<div class="screen">
+    <div class="topbar"><div class="ex-title">📖 使い方ガイド</div><button class="quit-btn" id="back">戻る</button></div>
+    <div class="card">
+      <div class="bench-title">📱 アプリのように使うには</div>
+      <div class="instr">${isIOS
+        ? 'Safariでこのページを開き、下の「共有ボタン(□↑)」→「ホーム画面に追加」を選びます。'
+        : 'Chromeでこのページを開き、右上の「⋮メニュー」→「ホーム画面に追加」(または「アプリをインストール」)を選びます。'}ホーム画面のアイコンから開けば、アドレスバーなしで毎日使えます。</div>
+    </div>
+    <div class="card">
+      <div class="bench-title">🎤 マイクの許可</div>
+      <div class="instr">「声に出して答える」テストでマイクの許可を聞かれたら「許可」を押してください。使えない環境では自動で入力式に切り替わります。</div>
+    </div>
+    <div class="card">
+      <div class="bench-title">🔔 毎日のリマインド</div>
+      <div class="instr">設定タブで時刻を決めてONにすると通知が届きます。通知の許可を求められたら「許可」を押してください。<b>ホーム画面に追加したアイコンから開いた状態</b>で設定すると確実に届きます。</div>
+    </div>
+    <div class="card">
+      <div class="bench-title">👨‍👩‍👧 家族と記録を見る</div>
+      <div class="instr">設定タブの「家族の記録」で「グループを作成」→ 6文字のコードが出ます。家族の端末で「コードで参加」に入れると、お互いの連続日数とベンチ点数がアプリ内で見えます。</div>
+    </div>
+    <div class="card">
+      <div class="bench-title">🗂 記録のバックアップ</div>
+      <div class="instr">記録はこの端末の中だけに保存されます。機種変更や誤って消した時に備えて、設定タブの「バックアップを保存」で月1回ファイルを残すのがおすすめです。復元も同じ画面からできます。</div>
+    </div>
+    <button class="btn" id="back2">ホームに戻る</button>
+  </div>`);
+  $('#back', screen).onclick = renderHome;
+  $('#back2', screen).onclick = renderHome;
+  render(screen);
+}
+
 /* ================= 初回案内 ================= */
 function renderWelcome() {
   const screen = el(`<div class="screen">
@@ -1890,7 +1959,7 @@ function renderWelcome() {
     <div class="card">
       <div class="instr">認知症予防の研究(ACTIVE試験・Lancet報告など)にもとづいた、<b>1日2分</b>の習慣アプリです。やることは3つだけ:</div>
       <div class="wl-item"><span class="wl-icon">🌿</span><div><b>習慣チェック(毎日)</b><br>運動・睡眠・会話など、予防に効く6項目をタップするだけ</div></div>
-      <div class="wl-item"><span class="wl-icon">🧠</span><div><b>認知ベンチマーク(週2〜3回)</b><br>10種のテストで処理速度や記憶を計測。やり方は動画つき</div></div>
+      <div class="wl-item"><span class="wl-icon">🧠</span><div><b>認知ベンチマーク(週2〜3回)</b><br>14種のテストで処理速度や記憶を計測。やり方は動画つき</div></div>
       <div class="wl-item"><span class="wl-icon">💡</span><div><b>今日のチャレンジ(毎日)</b><br>新しいことを1つ。脳の予備力を育てます</div></div>
       <div class="home-note">記録はこの端末だけに保存され、毎日続けると「連続日数」が伸びます</div>
     </div>
