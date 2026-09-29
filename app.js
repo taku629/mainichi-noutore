@@ -58,17 +58,31 @@ const sndDone = () => { beep(659, .13); setTimeout(() => beep(784, .13), 130); s
 
 /* ================= 状態保存 ================= */
 const STORE_KEY = 'noutore-v2';
+function sanitizeState(s) {
+  if (!s || typeof s !== 'object' || Array.isArray(s)) s = {};
+  if (typeof s.muted !== 'boolean') s.muted = false;
+  ['checks', 'bench', 'challenges', 'levels'].forEach(k => { if (!s[k] || typeof s[k] !== 'object' || Array.isArray(s[k])) s[k] = {}; });
+  if (typeof s.bigText !== 'boolean') s.bigText = false;
+  if (typeof s.dark !== 'boolean') s.dark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  if (typeof s.tab !== 'string') s.tab = 'home';
+  if (typeof s.seenIntro !== 'boolean') s.seenIntro = false;
+  if (!s.family || typeof s.family !== 'object' || typeof s.family.code !== 'string' || typeof s.family.name !== 'string') s.family = null; // {code, name}
+  if (typeof s.lastPost !== 'string') s.lastPost = '';    // 今日投稿済みか
+  Object.keys(s.bench).forEach(k => {
+    const e = s.bench[k];
+    if (!e || typeof e !== 'object' || typeof e.score !== 'number' || !isFinite(e.score)) { delete s.bench[k]; return; }
+    if (!e.metrics || typeof e.metrics !== 'object' || Array.isArray(e.metrics)) e.metrics = {};
+    if (!e.scores || typeof e.scores !== 'object' || Array.isArray(e.scores)) e.scores = {};
+  });
+  return s;
+}
 let state;
-try { state = JSON.parse(localStorage.getItem(STORE_KEY)) || {}; } catch (e) { state = {}; }
-if (!state || typeof state !== 'object' || Array.isArray(state)) { state = {}; try { localStorage.removeItem(STORE_KEY); } catch (e) {} }
-if (typeof state.muted !== 'boolean') state.muted = false;
-['checks', 'bench', 'challenges', 'levels'].forEach(k => { if (!state[k] || typeof state[k] !== 'object' || Array.isArray(state[k])) state[k] = {}; });
-if (typeof state.bigText !== 'boolean') state.bigText = false;
-if (typeof state.dark !== 'boolean') state.dark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-if (typeof state.tab !== 'string') state.tab = 'home';
-if (typeof state.seenIntro !== 'boolean') state.seenIntro = false;
-if (!state.family || typeof state.family !== 'object' || typeof state.family.code !== 'string' || typeof state.family.name !== 'string') state.family = null; // {code, name}
-if (typeof state.lastPost !== 'string') state.lastPost = '';    // 今日投稿済みか
+try {
+  const raw = localStorage.getItem(STORE_KEY);
+  const parsed = JSON.parse(raw);
+  state = sanitizeState(parsed);
+  if (raw !== null && (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))) localStorage.removeItem(STORE_KEY);
+} catch (e) { state = sanitizeState(null); }
 
 let coachBusy = false;
 const KV = 'https://keyvalue.immanuel.co/api/KeyVal';
@@ -1233,7 +1247,7 @@ function runExercise() {
   }
 
   function onResult(res) {
-    session.results.push({ icon: ex.icon, title: ex.title, weight: ex.weight, ...res });
+    session.results.push({ key: ex.key, icon: ex.icon, title: ex.title, weight: ex.weight, ...res });
     session.idx++;
     if (session.idx < session.list.length) runExercise();
     else finishSession();
@@ -1241,13 +1255,24 @@ function runExercise() {
 }
 
 function finishSession() {
-  const cogRes = session.results.filter(r => r.weight > 0);
-  const cog = Math.round(cogRes.reduce((s, r) => s + r.score * r.weight, 0) / cogRes.reduce((s, r) => s + r.weight, 0) * 100);
   const key = todayKey();
-  const metrics = {};
-  session.results.forEach(r => { if (r.metric) metrics[r.metric.key] = r.metric.value; });
+  const prevEntry = state.bench[key];
+  const prevMetrics = (prevEntry && typeof prevEntry.metrics === 'object' && prevEntry.metrics) || {};
+  const prevScores = (prevEntry && typeof prevEntry.scores === 'object' && prevEntry.scores) || {};
+  const metrics = { ...prevMetrics };
+  const scores = { ...prevScores };
+  session.results.forEach(r => {
+    if (r.metric) metrics[r.metric.key] = r.metric.value;
+    if (r.key && typeof r.score === 'number') scores[r.key] = r.score;
+  });
+  const weighted = Object.entries(scores)
+    .map(([k, s]) => ({ s, w: (EXERCISES.find(e => e.key === k) || { weight: 0 }).weight }))
+    .filter(r => r.w > 0);
+  const cog = weighted.length
+    ? Math.round(weighted.reduce((a, r) => a + r.s * r.w, 0) / weighted.reduce((a, r) => a + r.w, 0) * 100)
+    : 0;
   const prev = lastBench(key); // 今日より前の最新ベンチマーク
-  state.bench[key] = { score: cog, metrics, at: Date.now() };
+  state.bench[key] = { score: cog, metrics, scores, at: Date.now() };
   save();
   const streak = currentStreak();
   sndDone();
@@ -1656,11 +1681,9 @@ function renderHome() {
     rd.onload = () => {
       try {
         const obj = JSON.parse(rd.result);
-        if (!obj || typeof obj !== 'object' || (!obj.checks && !obj.bench)) throw 0;
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj) || (!obj.checks && !obj.bench)) throw 0;
         if (!confirm('いまの記録をバックアップの内容に置き換えます。よろしいですか?')) return;
-        state = obj;
-        if (typeof state.muted !== 'boolean') state.muted = false;
-        ['checks', 'bench', 'challenges', 'levels'].forEach(k2 => { if (!state[k2]) state[k2] = {}; });
+        state = sanitizeState(obj);
         save(); applyFont(); renderHome();
       } catch (e) { alert('バックアップファイルが読めませんでした'); }
     };
