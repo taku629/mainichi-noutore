@@ -1,0 +1,15 @@
+{
+  "name": "まいにち脳トレ",
+  "short_name": "脳トレ",
+  "description": "認知症予防のエビデンスにもとづく毎日のトレーニング。二重注意・高速計算・Nバック・デュアルタスク・ストループと生活習慣チェック。",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fff7ec",
+  "theme_color": "#2f7d5a",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
